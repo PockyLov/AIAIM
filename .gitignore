@@ -1,0 +1,80 @@
+# Python / runtime
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/*
+!logs/.gitkeep
+*.log
+*.jsonl
+
+# Local config / secrets
+config/local.*
+config/*.local.*
+*.secret.*
+*.key
+
+# Captures / datasets
+data/captures/
+data/raw/
+data/review/
+data/yolo/images/
+data/yolo/labels/
+data/**/*.png
+data/**/*.jpg
+data/**/*.jpeg
+data/**/*.bmp
+
+# Keep dataset config/docs/placeholders
+!data/.gitkeep
+!data/yolo/.gitkeep
+!data/yolo/*.yaml
+!data/yolo/README.md
+
+# Models / weights
+models/*
+!models/.gitkeep
+*.pt
+*.onnx
+*.engine
+*.weights
+*.tflite
+
+# YOLO / training outputs
+runs/*
+!runs/.gitkeep
+wandb/
+mlruns/
+
+# Temporary / cache
+.cache/
+tmp/
+temp/
+*.tmp
+
+# Large media
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+# Allow docs images
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.jpeg
