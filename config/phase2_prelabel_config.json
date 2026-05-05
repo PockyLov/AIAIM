@@ -1,0 +1,13 @@
+{
+  "hsv_lower": [18, 80, 80],
+  "hsv_upper": [40, 255, 255],
+  "min_area": 20,
+  "max_area": 20000,
+  "min_circularity": 0.45,
+  "min_aspect_ratio": 0.5,
+  "max_aspect_ratio": 1.8,
+  "morph_kernel_size": 3,
+  "write_empty_labels": true,
+  "class_id": 0,
+  "class_name": "yellow_ball"
+}

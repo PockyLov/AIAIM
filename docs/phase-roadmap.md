@@ -9,7 +9,7 @@ AIAIM must be developed incrementally. Codex must not skip ahead or implement la
 Current active phase:
 
 ```text
-Phase 1 only
+Phase 2 current / in progress
 ```
 
 2. Phase 0: Project Initialization and Codex Collaboration System
@@ -45,7 +45,7 @@ Main Difficulties
 Keeping Codex inside Phase 0.
 Avoiding premature implementation.
 Establishing clear safety and documentation rules.
-3. Phase 1: AIMLAB Foreground Stable Screenshot / Collector
+3. Phase 1: AIMLAB Foreground Stable Screenshot / Collector - completed
 Goal
 
 Build a stable screenshot collection foundation for fullscreen AIMLAB while AIMLAB is in the foreground.
@@ -77,39 +77,46 @@ Foreground-window verification.
 DPI scaling.
 Multi-monitor behavior.
 Capture performance.
-4. Phase 2: Real Screenshot Collection and YOLO Dataset Construction
+4. Phase 2: Dataset Preparation / Annotation Pipeline - current / in progress
 Goal
 
-Collect real AIMLAB screenshots and construct a clean YOLO-format yellow-ball dataset.
+Prepare Phase 1 AIMLAB screenshots as a reviewed YOLO-format yellow-ball dataset structure.
 
 Do
-Collect real screenshots from AIMLAB.
+Use Phase 1 screenshots and metadata from `data/raw/screenshots/`.
 Define yellow-ball labeling rules.
 Organize raw images and YOLO labels.
-Create train/validation split.
+Create selected image, prelabel, and YOLO dataset directories.
+Use OpenCV offline pre-labeling assistance on static screenshots.
+Generate draft YOLO labels and review overlay images.
+Require human review before labels are treated as final.
+Create train/validation/test split.
 Create dataset configuration.
 Validate image-label consistency.
 Produce dataset summary report.
 Do Not
-Do not train YOLO yet unless Phase 3 is explicitly started.
-Do not run real-time inference.
+Do not train YOLO.
+Do not run YOLO inference.
+Do not run real-time detection.
 Do not move the mouse.
 Do not click.
-Do not use fake labels as real data.
+Do not implement coordinate mapping.
+Do not implement auto-aim or closed-loop automation.
+Do not use OpenCV pre-labels as final truth without human review.
 Completion Criteria
 Dataset directory structure is clear.
 Images and labels match.
 YOLO labels use correct normalized format.
-Train/validation split exists.
+Train/validation/test split exists.
 Dataset summary exists.
-Dataset is ready for offline training.
+Dataset is ready for Phase 3 only after human review and validation.
 Main Difficulties
 Label quality.
 Sufficient data coverage.
 Yellow target boundary consistency.
 Avoiding false labels.
 Efficient manual or semi-automatic labeling workflow.
-5. Phase 3: YOLO Offline Training and Offline Inference
+5. Phase 3: YOLO Offline Training and Offline Inference - future
 Goal
 
 Train a YOLO model to detect yellow AIMLAB targets and validate it on offline images.
@@ -141,7 +148,7 @@ Overfitting.
 Dataset size.
 Yellow background false positives.
 Balancing speed and accuracy.
-6. Phase 4: Real-Time YOLO Detect-Only
+6. Phase 4: Real-Time YOLO Detect-Only - future
 Goal
 
 Connect screenshot capture to YOLO inference and output real-time detection results without controlling the mouse.
@@ -171,7 +178,7 @@ Detection stability.
 Confidence threshold tuning.
 Frame rate limitations.
 Handling missed detections.
-7. Phase 5: Coordinate Mapping Dry-Run
+7. Phase 5: Coordinate Mapping Dry-Run - future
 Goal
 
 Map detected yellow-ball center from screenshot coordinates to screen coordinates in dry-run mode only.

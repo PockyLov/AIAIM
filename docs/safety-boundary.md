@@ -35,3 +35,30 @@ Before real mouse movement or clicking can exist, the project must include:
 ## Phase 0 Boundary
 
 Phase 0 does not implement screenshot capture, foreground detection, YOLO, data collection, coordinate mapping, mouse movement, clicking, or real automation.
+
+## Phase 2 Boundary
+
+Phase 2 allows:
+
+- Data organization
+- Human annotation guidelines
+- OpenCV offline pre-labeling assistance
+- YOLO label format preparation
+- Train / val / test dataset splitting
+- `data.yaml` generation
+- Dataset validation
+
+Phase 2 forbids:
+
+- YOLO training
+- YOLO inference
+- Real-time detection
+- Mouse movement
+- Mouse clicking
+- Coordinate mapping
+- Auto-aim
+- Closed-loop automation
+- Anti-cheat bypass
+- AIMLAB background window screenshot expansion
+
+OpenCV pre-labeling only processes static images already saved under the dataset folders. It does not connect to AIMLAB real-time video, does not connect to the Phase 1 collector, and does not drive any input device.

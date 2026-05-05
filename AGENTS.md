@@ -20,7 +20,7 @@ AIAIM must not be used for:
 Current phase:
 
 ```text
-Phase 1 only
+Phase 2 only
 ```
 
 1. Hard Constraints
@@ -102,6 +102,7 @@ Examples:
 During Phase 0, do not write screenshot code.
 During Phase 1, do not train YOLO.
 During Phase 2, do not implement mouse movement.
+During Phase 2, do not train YOLO or run YOLO inference.
 During Phase 3, do not implement real-time clicking.
 During Phase 4, do not control the mouse.
 During Phase 5, do not move the mouse.

@@ -2,7 +2,7 @@
 
 AIAIM is a local offline AIMLAB experiment for staged research into yellow-ball detection, localization, and eventually gated mouse-control feedback.
 
-Current status: Phase 1, AIMLAB foreground stable screenshot collector.
+Current status: Phase 2 completed, Dataset Preparation / Annotation Pipeline.
 
 Phase 1 has been validated on Windows with AIMLAB: foreground capture works, non-foreground attempts are blocked, F8/F9/Esc hotkeys work, and 116 PNG screenshots were collected with corresponding JSON metadata.
 
@@ -93,6 +93,56 @@ Validated on Windows with AIMLAB:
 - Logs are written to `logs/collector.log`.
 
 Phase 1 still does not include YOLO, yellow-ball recognition, automatic labeling, mouse movement, mouse clicking, coordinate mapping, closed-loop automation, or background window screenshots.
+
+## Phase 2 Dataset Preparation
+
+Phase 2 prepares the Phase 1 screenshots for a future reviewed YOLO-format object-detection dataset. It covers selection, OpenCV offline pre-labeling assistance, human review workflow, train / val / test splitting, `data.yaml`, and dataset validation.
+
+Phase 2 is completed for the current reviewed dataset:
+
+- Dataset path: `data/yolo/aimlab_yellow_ball_v1/`
+- `data.yaml` generated
+- split completed: train 81 / val 23 / test 12
+- validation passed
+- total images: 116
+- total labels: 116
+- positive images: 115
+- negative images: 1
+- total boxes: 689
+- class distribution: `{'0': 689}`
+
+The current dataset has only one negative image. If future model checks show false positives, add negative samples toward a 10%-20% negative ratio.
+
+Phase 2 command entry points:
+
+```powershell
+python scripts/prepare_phase2_dataset.py --dry-run
+python scripts/prepare_phase2_dataset.py
+python scripts/prelabel_yellow_ball_opencv.py --dry-run
+python scripts/prelabel_yellow_ball_opencv.py --overwrite --review-images
+python scripts/split_yolo_dataset.py --allow-empty-labels
+python scripts/validate_yolo_dataset.py
+```
+
+Phase 2 data directories:
+
+- `data/raw/screenshots/`: Phase 1 source screenshots and metadata
+- `data/selected/phase2_yellow_ball/`: filtered images for annotation
+- `data/prelabels/phase2_yellow_ball/`: OpenCV draft labels, review images, and manifest
+- `data/yolo/aimlab_yellow_ball_v1/`: reviewed YOLO dataset structure
+
+OpenCV pre-labels are draft annotation assistance only and require human review.
+
+Phase 2 does not include YOLO training, YOLO inference, real-time detection, mouse movement, mouse clicking, coordinate mapping, closed-loop automation, or background window screenshots.
+
+No YOLO training was performed. No YOLO inference was performed. No real-time detection was performed. No mouse movement was performed. No mouse click was performed. No coordinate mapping was implemented. No closed-loop automation was implemented. No anti-cheat bypass was attempted.
+
+Phase 2 documents:
+
+- `docs/annotation-guidelines.md`
+- `docs/dataset-preparation.md`
+- `docs/runbooks/phase-2-dataset-runbook.md`
+- `docs/phase-reports/phase-2-report.md`
 
 ## Start Here
 
