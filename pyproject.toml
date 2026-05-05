@@ -1,0 +1,18 @@
+[project]
+name = "aiaim"
+version = "0.1.0"
+description = "Phase 1 AIMLAB foreground screenshot collector"
+requires-python = ">=3.10"
+dependencies = [
+  "mss>=9.0.1",
+  "pynput>=1.7.6",
+]
+
+[project.scripts]
+aiaim-collect-screenshots = "aiaim_collector.collect_screenshots:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

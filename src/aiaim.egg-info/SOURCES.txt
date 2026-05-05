@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+src/aiaim.egg-info/PKG-INFO
+src/aiaim.egg-info/SOURCES.txt
+src/aiaim.egg-info/dependency_links.txt
+src/aiaim.egg-info/entry_points.txt
+src/aiaim.egg-info/requires.txt
+src/aiaim.egg-info/top_level.txt
+src/aiaim_collector/__init__.py
+src/aiaim_collector/collect_screenshots.py
+src/aiaim_collector/collector_service.py
+src/aiaim_collector/hotkey_controller.py
+src/aiaim_collector/logging_setup.py
+src/aiaim_collector/metadata_writer.py
+src/aiaim_collector/monitor_detector.py
+src/aiaim_collector/screen_capture.py
+src/aiaim_collector/window_detector.py

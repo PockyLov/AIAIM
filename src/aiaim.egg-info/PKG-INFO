@@ -1,0 +1,7 @@
+Metadata-Version: 2.4
+Name: aiaim
+Version: 0.1.0
+Summary: Phase 1 AIMLAB foreground screenshot collector
+Requires-Python: >=3.10
+Requires-Dist: mss>=9.0.1
+Requires-Dist: pynput>=1.7.6

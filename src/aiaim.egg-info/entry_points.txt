@@ -1,0 +1,2 @@
+[console_scripts]
+aiaim-collect-screenshots = aiaim_collector.collect_screenshots:main
