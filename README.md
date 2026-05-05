@@ -2,7 +2,7 @@
 
 AIAIM is a local offline AIMLAB experiment for staged research into yellow-ball detection, localization, and eventually gated mouse-control feedback.
 
-Current status: Phase 2 completed, Dataset Preparation / Annotation Pipeline.
+Current status: Phase 3 baseline accepted. Phase 4 is allowed only for detect-only planning; Phase 4 implementation has not started.
 
 Phase 1 has been validated on Windows with AIMLAB: foreground capture works, non-foreground attempts are blocked, F8/F9/Esc hotkeys work, and 116 PNG screenshots were collected with corresponding JSON metadata.
 
@@ -143,6 +143,76 @@ Phase 2 documents:
 - `docs/dataset-preparation.md`
 - `docs/runbooks/phase-2-dataset-runbook.md`
 - `docs/phase-reports/phase-2-report.md`
+
+## Phase 3 YOLO Baseline
+
+Phase 3 trained and evaluated an offline YOLO11n baseline on:
+
+```text
+data/yolo/aimlab_yellow_ball_v1_1/data.yaml
+```
+
+Dataset summary:
+
+- total images: 364
+- train / val / test: 254 / 72 / 38
+- positive images: 347
+- negative images: 17
+- total boxes: 2054
+- validation result before training: VALIDATION PASSED
+
+Commands:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\train_yolo_baseline.py
+.\.venv\Scripts\python.exe scripts\eval_yolo_baseline.py
+.\.venv\Scripts\python.exe scripts\predict_yolo_review.py
+```
+
+Outputs:
+
+- `runs/detect/phase3_yolo11n_baseline/`
+- `runs/detect/phase3_eval_metrics.csv`
+- `runs/detect/phase3_prediction_review_summary.csv`
+- `runs/detect/phase3_predict_val_conf025/`
+- `runs/detect/phase3_predict_val_conf050/`
+- `runs/detect/phase3_predict_test_conf025/`
+- `runs/detect/phase3_predict_test_conf050/`
+
+Baseline validation metrics from `scripts/eval_yolo_baseline.py`:
+
+- precision: 0.975152
+- recall: 0.878610
+- mAP50: 0.892387
+- mAP50-95: 0.534663
+
+Best checkpoint:
+
+```text
+runs/detect/phase3_yolo11n_baseline/weights/best.pt
+```
+
+The current negative sample count is still limited (`negative_images=17`). If prediction review shows false positives on yellow UI/buttons/lights, return to Phase 2.5 and add more negative samples.
+
+Manual prediction review result:
+
+- User reviewed prediction review images, especially test `conf=0.25` and test `conf=0.50`.
+- Review image blue label text is visually large and covers part of some small yellow balls.
+- Overall prediction positions and counts are acceptable for this baseline.
+- Phase 3 baseline accepted.
+- No immediate retraining is required.
+- No immediate return to Phase 2.5 is required.
+- `imgsz=960` is not needed now, but remains a future option if small-ball misses become obvious.
+- The model is acceptable for Phase 4 detect-only planning.
+
+This does not mean the system is ready for real-time detection or mouse control.
+
+Phase 3 does not include real-time detection, AIMLAB live screen connection, mouse movement, mouse clicking, coordinate mapping, auto-aim, closed-loop automation, or anti-cheat bypass.
+
+Phase 3 documents:
+
+- `docs/runbooks/phase-3-yolo-training-runbook.md`
+- `docs/phase-reports/phase-3-report.md`
 
 ## Start Here
 

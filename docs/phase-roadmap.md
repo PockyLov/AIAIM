@@ -9,7 +9,7 @@ AIAIM must be developed incrementally. Codex must not skip ahead or implement la
 Current active phase:
 
 ```text
-Phase 2 current / in progress
+Phase 3 baseline accepted; Phase 4 detect-only planning allowed, implementation not started
 ```
 
 2. Phase 0: Project Initialization and Codex Collaboration System
@@ -77,7 +77,7 @@ Foreground-window verification.
 DPI scaling.
 Multi-monitor behavior.
 Capture performance.
-4. Phase 2: Dataset Preparation / Annotation Pipeline - current / in progress
+4. Phase 2: Dataset Preparation / Annotation Pipeline - completed
 Goal
 
 Prepare Phase 1 AIMLAB screenshots as a reviewed YOLO-format yellow-ball dataset structure.
@@ -116,7 +116,7 @@ Sufficient data coverage.
 Yellow target boundary consistency.
 Avoiding false labels.
 Efficient manual or semi-automatic labeling workflow.
-5. Phase 3: YOLO Offline Training and Offline Inference - future
+5. Phase 3: YOLO Training / Baseline Evaluation - baseline accepted
 Goal
 
 Train a YOLO model to detect yellow AIMLAB targets and validate it on offline images.
@@ -142,6 +142,19 @@ Detection boxes and confidence scores are produced.
 Model metadata is documented.
 Validation results are recorded.
 Known limitations are documented.
+Current Result
+YOLO11n baseline training completed on `data/yolo/aimlab_yellow_ball_v1_1/data.yaml`.
+The best checkpoint exists at `runs/detect/phase3_yolo11n_baseline/weights/best.pt`.
+Offline validation metrics were recorded in `runs/detect/phase3_eval_metrics.csv`.
+Offline prediction review images were generated for val/test at `conf=0.25` and `conf=0.50`.
+Manual prediction review was completed by the user, focused on test `conf=0.25` and test `conf=0.50`.
+The rendered blue review labels are visually large and cover part of some small yellow balls, but prediction positions and counts are acceptable for this baseline.
+Phase 3 baseline accepted.
+No immediate retraining is required.
+No immediate return to Phase 2.5 is required.
+`imgsz=960` is not needed at this point, but remains a future option if small-ball misses become obvious.
+The model is acceptable for Phase 4 detect-only planning.
+This does not mean the system is ready for real-time detection or mouse control.
 Main Difficulties
 Small-target detection.
 Overfitting.
