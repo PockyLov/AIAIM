@@ -1,0 +1,16 @@
+{
+  "phase": "phase8_one_shot_relative_aim",
+  "allow_relative_mouse_move": true,
+  "allow_click": false,
+  "allow_loop": false,
+  "allow_closed_loop": false,
+  "require_aimlab_foreground": true,
+  "require_confirm_local_aimlab_only": true,
+  "target_selection": "nearest_to_crosshair",
+  "px_per_mouse_count_x": -0.3605,
+  "px_per_mouse_count_y": -0.3024,
+  "max_abs_relative_dx": 3000,
+  "max_abs_relative_dy": 3000,
+  "settle_sec": 0.2,
+  "capture_after_for_validation": true
+}

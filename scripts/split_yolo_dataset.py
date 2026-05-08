@@ -43,7 +43,8 @@ def split_items(items: list[tuple[Path, Path]], train_ratio: float, val_ratio: f
 
 
 def write_data_yaml(out: Path) -> None:
-    content = """path: data/yolo/aimlab_yellow_ball_v1
+    dataset_path = str(out).replace("\\", "/")
+    content = f"""path: {dataset_path}
 train: images/train
 val: images/val
 test: images/test

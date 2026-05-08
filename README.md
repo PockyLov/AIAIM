@@ -2,7 +2,7 @@
 
 AIAIM is a local offline AIMLAB experiment for staged research into yellow-ball detection, localization, and eventually gated mouse-control feedback.
 
-Current status: Phase 8 one-shot relative aim implemented; Windows + AIMLAB Phase 8 acceptance is pending. Phase 7.5 Windows acceptance confirmed AIMLAB responds to SendInput relative movement.
+Current status: Phase 9 one-shot click gate accepted on Windows + AIMLAB. Phase 8.2 FOV one-shot robustness validation is accepted, and Phase 7.5 confirmed AIMLAB responds to SendInput relative movement.
 
 Phase 1 has been validated on Windows with AIMLAB: foreground capture works, non-foreground attempts are blocked, F8/F9/Esc hotkeys work, and 116 PNG screenshots were collected with corresponding JSON metadata.
 
@@ -657,3 +657,155 @@ Read these documents before any future change:
 - `docs/mcp-plan.md`
 
 Every phase must end with a report in `docs/phase-reports/`.
+
+## Phase 8.2 FOV One-Shot Robustness Validation
+
+Phase 8.2 accepted. It reused the Phase 8.1 FOV-based one-shot relative aim model for four Windows + AIMLAB fullscreen execute validations across multiple target positions.
+
+Validation summary:
+
+| Run | Before Distance | After Distance | Reduction Ratio | Rounded Move |
+| --- | ---: | ---: | ---: | --- |
+| 20260507_183231 | 81.4231 px | 4.6847 px | 0.9425 | {"dx": 234, "dy": -43} |
+| 20260507_183303 | 115.8176 px | 5.7985 px | 0.9499 | {"dx": -336, "dy": 27} |
+| 20260507_183417 | 120.9481 px | 4.5273 px | 0.9626 | {"dx": 332, "dy": 117} |
+| 20260507_183441 | 245.1422 px | 6.0199 px | 0.9754 | {"dx": 693, "dy": -53} |
+
+Result: 4/4 one-shot execute runs passed. All final distances were `<= 6.0199 px`, and all distance reduction ratios were `>= 0.9425`. `global_gain=1.0` and `counts_per_degree=39.03` remain unchanged.
+
+Phase 8.2 did not add clicking, automatic clicking, looped movement, closed-loop correction, second correction, target lock, PID, micro-step movement, smooth movement, AIMLAB memory reading, AIMLAB file modification, anti-cheat bypass, or background automation.
+
+Report:
+
+- `docs/phase-reports/phase-8-2-report.md`
+
+## Phase 9 One-Shot Click Gate
+
+Phase 9 implements a strictly gated single-click decision after the accepted Phase 8.1 / Phase 8.2 FOV one-shot relative aim flow. Phase 9 is accepted on Windows + AIMLAB.
+
+Flow:
+
+```text
+one before detection -> one FOV relative move -> one after detection -> optional one gated click -> exit
+```
+
+Dry-run, no move and no click:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\live_one_shot_click_gate.py `
+  --model "D:\桌面desktop\AIAIM\runs\detect\phase3_yolo11n_baseline\weights\best.pt" `
+  --conf 0.25 `
+  --click-threshold-px 8 `
+  --output-dir "D:\桌面desktop\AIAIM\runs\detect\phase9_one_shot_click_gate"
+```
+
+Execute one move, no click:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\live_one_shot_click_gate.py `
+  --model "D:\桌面desktop\AIAIM\runs\detect\phase3_yolo11n_baseline\weights\best.pt" `
+  --conf 0.25 `
+  --execute-move `
+  --confirm-local-aimlab-only `
+  --click-threshold-px 8 `
+  --output-dir "D:\桌面desktop\AIAIM\runs\detect\phase9_one_shot_click_gate"
+```
+
+Execute one move and allow one click if the gate passes:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\live_one_shot_click_gate.py `
+  --model "D:\桌面desktop\AIAIM\runs\detect\phase3_yolo11n_baseline\weights\best.pt" `
+  --conf 0.25 `
+  --execute-move `
+  --allow-click `
+  --confirm-local-aimlab-only `
+  --click-threshold-px 8 `
+  --after-move-wait-ms 100 `
+  --click-down-up-delay-ms 50 `
+  --output-dir "D:\桌面desktop\AIAIM\runs\detect\phase9_one_shot_click_gate"
+```
+
+Phase 9 does not implement looped movement, repeated clicking, target lock, PID, second correction, closed-loop control, hotkey runner, background automation, AIMLAB memory reading, AIMLAB file modification, or anti-cheat bypass.
+
+Accepted Windows run:
+
+```text
+phase=9
+mode=one_shot_click_gate
+blocked=False
+blocked_reason=None
+relative_aim_executed=True
+click_gate_passed=True
+click_executed=True
+run_dir=D:\桌面desktop\AIAIM\runs\detect\phase9_one_shot_click_gate\20260507_202455
+```
+
+The accepted run executed one `SendInput` relative move and one gated left click. It did not add looped movement, second correction, target lock, PID, Hotkey Runner, background automation, AIMLAB memory reading, AIMLAB file modification, or anti-cheat bypass.
+
+Documents:
+
+- `docs/runbooks/phase-9-one-shot-click-gate-runbook.md`
+- `docs/phase-reports/phase-9-report.md`
+
+## Phase 10 Finite Repeat Aim + Click
+
+Phase 10 implements a bounded finite repeat of the accepted Phase 9 one-shot aim + click step. It uses fresh screenshot and YOLO detection every iteration, performs at most one relative move and one click per iteration, and stops on `max_iterations`, `max_duration_sec`, foreground block, no-detection timeout, after-detection missing, after-distance miss, or Ctrl+C.
+
+Defaults: `max_iterations=160`, `max_duration_sec=65`, `next_target_timeout_sec=0.50`, `post_click_wait_sec=0.20`, `click_threshold_px=8`, `counts_per_degree=39.03`, `global_gain=1.0`.
+
+Smoke test:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\live_finite_repeat_aim_click.py `
+  --model "D:\桌面desktop\AIAIM\runs\detect\phase3_yolo11n_baseline\weights\best.pt" `
+  --max-iterations 10 `
+  --max-duration-sec 30 `
+  --after-validation-mode hybrid `
+  --center-roi-radius-px 20 `
+  --center-roi-click-threshold-px 10 `
+  --center-roi-min-yellow-pixels 8 `
+  --center-roi-min-contour-area-px 4 `
+  --execute-move `
+  --allow-click `
+  --confirm-local-aimlab-only `
+  --output-dir "D:\桌面desktop\AIAIM\runs\detect\phase10_finite_repeat_aim_click"
+```
+
+Phase 10 does not implement Hotkey Runner, GUI, background automation, infinite loop, PID, target lock, smoothing, second correction, AIMLAB memory reading, AIMLAB file modification, or anti-cheat bypass.
+
+
+Phase 10.1 update: after validation now defaults to `--after-validation-mode hybrid`. It first checks whether any after YOLO detection center is within `click_threshold_px`; if not, it checks a small crosshair-centered yellow ROI to avoid false failures when the centered yellow ball is partially hidden by the green crosshair. `max_duration_sec` now applies to active loop duration, not model loading / startup wall time.
+
+Recommended Phase 10.1 smoke test uses `--max-iterations 10`, `--max-duration-sec 30`, `--after-validation-mode hybrid`, `--center-roi-radius-px 20`, `--center-roi-click-threshold-px 10`, `--center-roi-min-yellow-pixels 8`, and `--center-roi-min-contour-area-px 4`.
+
+
+Phase 10.2 update: finite repeat now supports bounded retry and faster default evidence handling. Defaults are `--retry-policy bounded`, `--max-retries-per-target 1`, `--max-total-retry-attempts 20`, `--retry-distance-px 30`, `--retry-same-target-distance-px 45`, `--evidence-mode failures`, and `--post-click-wait-sec 0.05`. Retry is not target lock or PID: each retry is a new bounded iteration with a fresh screenshot/detection, one move at most, and one click at most. Phase 10.2 is a step toward sub-500 ms rounds; it does not claim 100 ms performance yet.
+
+Recommended Phase 10.2 smoke test adds `--after-validation-mode hybrid --retry-policy bounded --max-retries-per-target 1 --max-total-retry-attempts 20 --retry-distance-px 30 --retry-same-target-distance-px 45 --evidence-mode failures --post-click-wait-sec 0.05` to the existing Phase 10 command.
+
+
+
+Phase 10.3 update: added strict fallback click guard, capture backend selection / benchmark-only mode, persistent mss capture path, optional dxcam detection, and `--after-fast-mode roi_only`. Recommended order is capture benchmark first, then a 30-round Phase 10.3 test. Defaults now favor `--post-click-wait-sec 0.03`, `--after-fast-mode roi_only`, `--click-guard-mode strict`, `--capture-backend auto`, and `--evidence-mode failures`. Phase 10.3 still does not add Hotkey Runner, GUI, background automation, infinite loop, PID, target lock, smoothing, or second correction.
+
+Documents:
+
+- `docs/runbooks/phase-10-finite-repeat-aim-click-runbook.md`
+- `docs/phase-reports/phase-10-report.md`
+
+
+
+Phase 10.3.1 update: capture timing now excludes PNG evidence encoding. Raw capture returns an in-memory frame for YOLO/ROI validation, and PNG encode happens only when evidence is saved. `--capture-benchmark-only` defaults to raw capture timing; use `--capture-benchmark-include-encode` only when measuring PNG encode cost.
+
+### Phase 10.3.2 startup stability update
+
+Phase 10.3.2 adds a default YOLO warmup before the active Phase 10 loop. The warmup is no-action: it does not move or click, and it is excluded from active loop duration. This avoids cold first inference consuming the target wait window. The patch also changes `no_detection_timeout` to a normal stop reason rather than a safety block and fixes duplicate `iteration_summary.csv` headers for PowerShell `Import-Csv`.
+
+### Phase 10.3.4 no-detection semantics update
+
+Phase 10.3.4 changes `max_iterations` to mean action iterations only. No-detection loops no longer consume the action budget; they are bounded by `max_duration_sec`, `--max-loop-iterations`, `--max-no-detection-timeouts`, and `--max-consecutive-no-detection-timeouts`. No-detection timeout iterations now save diagnostic before-frame evidence by default under `evidence-mode=failures`, limited by `--max-no-detection-evidence 10`. Fallback click evidence remains opt-in with `--save-evidence-on-fallback-click`.
+
+### Phase 10.3.5 live detection parity update
+
+Phase 10.3.5 separates evidence RGB frames from YOLO BGR ndarray input and adds no-detection parity diagnostics. If a no-detection frame has visible yellow balls, use `--debug-detection-parity` or the default no-detection parity path to compare live in-memory detections with file-path detections from the same saved `before.png`. Do not retrain until live/offline parity is confirmed.
+

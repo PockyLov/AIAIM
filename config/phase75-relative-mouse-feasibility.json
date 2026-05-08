@@ -1,0 +1,16 @@
+{
+  "phase": "phase75_relative_mouse_feasibility",
+  "allow_relative_mouse_move": true,
+  "allow_click": false,
+  "allow_loop": false,
+  "allow_closed_loop": false,
+  "require_aimlab_foreground": true,
+  "require_confirm_local_aimlab_only": true,
+  "target_selection": "nearest_to_crosshair",
+  "default_relative_dx": 100,
+  "default_relative_dy": 0,
+  "max_abs_relative_dx": 500,
+  "max_abs_relative_dy": 500,
+  "settle_sec": 0.2,
+  "max_match_distance_px": 300
+}

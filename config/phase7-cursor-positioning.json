@@ -1,0 +1,11 @@
+{
+  "phase": "phase7_direct_cursor_positioning",
+  "allow_mouse_move": true,
+  "allow_click": false,
+  "allow_loop": false,
+  "allow_closed_loop": false,
+  "target_selection": "nearest_to_cursor",
+  "max_direct_jump_px": null,
+  "require_aimlab_foreground": true,
+  "require_confirm_local_aimlab_only": true
+}

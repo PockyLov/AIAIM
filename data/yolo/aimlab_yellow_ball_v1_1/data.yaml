@@ -1,0 +1,7 @@
+path: data/yolo/aimlab_yellow_ball_v1_1
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: yellow_ball
