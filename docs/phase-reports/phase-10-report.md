@@ -399,3 +399,105 @@ Interpretation:
 
 Recommended next diagnostic: run a 3-action test with no-detection evidence and parity enabled, then inspect `step_result.json`, `before_detection.json`, and the saved `before.png` for any no-detection iterations.
 
+## Phase 10.3.6 - After-Missing Bounded Retry + 300-Round Defaults
+
+Phase 10.3.6 treats `after_detection_missing` as a bounded retry condition when `--retry-policy bounded` is active. It still does not click when after validation is missing; it records the failed action iteration, schedules a retry, and the next iteration must use a fresh screenshot, fresh detection, and fresh FOV computation.
+
+Retry behavior:
+- `after_validation_method=no_after_detection` or `stop_reason=after_detection_missing` schedules `retry_reason=after_detection_missing_retry` under bounded retry.
+- The iteration remains `blocked=false`, `click_executed=false`, and `retry_scheduled=true`.
+- Retry limits still apply: `max_total_retry_attempts`, `max_retries_per_target`, `max_iterations`, `max_duration_sec`, `max_loop_iterations`, foreground gate, and KeyboardInterrupt.
+- With `--retry-policy stop`, old stop behavior is preserved for debugging.
+
+Recommended 300-round pressure command:
+
+```powershell
+Start-Sleep -Seconds 3; .\.venv\Scripts\python.exe scripts\live_finite_repeat_aim_click.py `
+  --model "D:\桌面desktop\AIAIM\runs\detect\phase3_yolo11n_baseline\weights\best.pt" `
+  --max-iterations 300 `
+  --max-duration-sec 120 `
+  --click-threshold-px 8 `
+  --post-click-wait-sec 0.03 `
+  --next-target-timeout-sec 0.50 `
+  --no-detection-poll-interval-sec 0.05 `
+  --horizontal-fov-deg 103 `
+  --vertical-fov-deg 70.53 `
+  --counts-per-degree 39.03 `
+  --global-gain 1.0 `
+  --after-validation-mode hybrid `
+  --after-fast-mode roi_only `
+  --click-guard-mode strict `
+  --strict-center-roi-click-threshold-px 6 `
+  --retry-policy bounded `
+  --max-retries-per-target 2 `
+  --max-total-retry-attempts 100 `
+  --retry-distance-px 30 `
+  --retry-same-target-distance-px 45 `
+  --capture-backend auto `
+  --evidence-mode failures `
+  --no-detection-policy continue `
+  --max-no-detection-timeouts 200 `
+  --max-consecutive-no-detection-timeouts 30 `
+  --max-no-detection-evidence 10 `
+  --save-evidence-on-no-detection `
+  --execute-move `
+  --allow-click `
+  --confirm-local-aimlab-only `
+  --output-dir "D:\桌面desktop\AIAIM\runs\detect\phase10_finite_repeat_aim_click"
+```
+
+Do not add `--save-evidence-on-fallback-click` to this command unless diagnosing fallback clicks.
+
+## Phase 10.3.6 / 10.3.7 Pressure Test Result
+
+User-run Windows + AIMLAB 300-round pressure test result:
+
+| Metric | Value |
+| --- | ---: |
+| phase | 10 |
+| mode | finite_repeat_aim_click |
+| stop_reason | max_consecutive_no_detection_timeouts_reached |
+| iterations_requested | 300 |
+| loop_iterations_attempted | 254 |
+| action_iterations_attempted | 224 |
+| clicks_executed | 198 |
+| moves_executed | 224 |
+| no_detection_timeout_count | 30 |
+| after_detection_missing_retry_count | 8 |
+| after_detection_missing_stop_count | 0 |
+| total_retry_attempts | 26 |
+| retry_limit_reached_count | 0 |
+| benchmark_passed_under_400ms | true |
+| active_loop_duration_sec | 73.6419 |
+| average_iteration_total_ms | 287.1995 |
+| median_iteration_total_ms | 264.3435 |
+| p90_iteration_total_ms | 508.388 |
+| average_action_round_ms | 255.9552 |
+| average_before_capture_ms | 26.3892 |
+| average_before_detect_ms | 10.9655 |
+| average_after_capture_ms | 26.4478 |
+| average_after_detect_ms | 0.0 |
+| average_after_validation_ms | 7.4884 |
+| evidence_mode | minimal |
+| average_evidence_total_ms | 0.0 |
+| fallback_click_count | 198 |
+| strict_fallback_guard_retry_count | 18 |
+
+Derived metrics from this run:
+
+| Metric | Approx Value |
+| --- | ---: |
+| clicks_per_active_second | 2.6887 |
+| actions_per_active_second | 3.0418 |
+| click_rate_over_actions | 0.8839 |
+| retry_rate_over_actions | 0.1161 |
+
+Conclusion:
+- Phase 10 high-speed finite repeat aim + click has completed real-machine pressure validation.
+- The program stopped safely after AIMLAB task completion / target exhaustion, represented by consecutive no-detection timeouts.
+- This stop is not a safety failure. There was no foreground block, no keyboard interrupt, no max-duration stop, and no retry-limit stop.
+- Speed target is met: average iteration was about 287 ms, average action round was about 256 ms, and `benchmark_passed_under_400ms=true`.
+- Bounded retry is working: after-detection-missing produced retries and did not stop the run.
+- `evidence-mode=minimal` avoided I/O overhead; average evidence time was 0 ms.
+- Current implementation still does not include Hotkey Runner, GUI, background automation, PID, target lock, smoothing, AIMLAB process memory reads, AIMLAB file modification, or anti-cheat bypass.
+

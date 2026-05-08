@@ -809,3 +809,11 @@ Phase 10.3.4 changes `max_iterations` to mean action iterations only. No-detecti
 
 Phase 10.3.5 separates evidence RGB frames from YOLO BGR ndarray input and adds no-detection parity diagnostics. If a no-detection frame has visible yellow balls, use `--debug-detection-parity` or the default no-detection parity path to compare live in-memory detections with file-path detections from the same saved `before.png`. Do not retrain until live/offline parity is confirmed.
 
+### Phase 10.3.6 after-missing retry update
+
+Phase 10.3.6 makes `after_detection_missing` retriable under `--retry-policy bounded`: no click is performed, the iteration is not treated as a safety block, and the next attempt must use a fresh screenshot/detection/FOV computation. The recommended pressure-test profile is now 300 action iterations, 120 seconds, `--max-total-retry-attempts 100`, `--max-retries-per-target 2`, `--max-no-detection-timeouts 200`, and `--max-consecutive-no-detection-timeouts 30`.
+
+### Phase 10.3.7 pressure-test classification
+
+Phase 10.3.7 records the 300-round pressure-test result: 224 action iterations, 198 clicks, average iteration around 287 ms, average action round around 256 ms, and `benchmark_passed_under_400ms=true`. The observed terminal stop was consecutive no-detection after AIMLAB task completion / target exhaustion, now reported as `terminal_classification=likely_task_ended_or_targets_exhausted` when the run has completed clicks/actions without safety blocks, max-duration stop, or retry-limit stop.
+

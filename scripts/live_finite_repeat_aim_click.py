@@ -36,7 +36,7 @@ ITERATION_FIELDS = [
     "target_select_ms", "fov_compute_ms", "sendinput_move_ms", "post_move_sleep_ms", "after_capture_ms", "after_detect_ms",
     "capture_object_init_ms", "monitor_lookup_ms", "raw_grab_ms", "buffer_to_numpy_ms", "color_convert_ms",
     "after_validate_ms", "after_validation_ms", "click_ms", "post_click_wait_ms", "logging_ms", "blocked", "blocked_reason",
-    "after_validation_mode", "after_validation_method", "after_validation_passed",
+    "after_validation_mode", "after_validation_method", "after_validation_passed", "after_detection_missing_retry",
     "after_nearest_detection_index", "after_nearest_detection_center_x", "after_nearest_detection_center_y", "after_nearest_detection_distance_px",
     "center_roi_radius_px", "center_roi_click_threshold_px", "center_roi_yellow_pixel_count", "center_roi_largest_contour_area_px",
     "center_roi_yellow_centroid_x", "center_roi_yellow_centroid_y", "center_roi_yellow_centroid_distance_px", "center_roi_fallback_passed",
@@ -231,6 +231,32 @@ def build_summary(
     before_captures = [float(row["before_capture_ms"]) for row in rows if row.get("before_capture_ms") is not None]
     after_captures = [float(row["after_capture_ms"]) for row in rows if row.get("after_capture_ms") is not None]
     retry_scheduled_rows = [row for row in rows if row.get("retry_scheduled")]
+    action_iterations_attempted = sum(1 for row in rows if row.get("before_detections_count", 0))
+    clicks_executed = sum(1 for row in rows if row.get("click_executed"))
+    no_detection_timeout_count = sum(1 for row in rows if row.get("stop_reason") == "no_detection_timeout")
+    foreground_blocked_count = sum(1 for row in rows if row.get("stop_reason") == "foreground_blocked")
+    retry_limit_reached_count = sum(1 for row in rows if row.get("retry_limit_reached"))
+    max_duration_reached = stop_reason == "max_duration_reached"
+    active_loop_duration_sec = timing.get("active_loop_duration_sec")
+    try:
+        active_loop_duration = float(active_loop_duration_sec) if active_loop_duration_sec is not None else None
+    except (TypeError, ValueError):
+        active_loop_duration = None
+    task_end_likely = (
+        stop_reason == "max_consecutive_no_detection_timeouts_reached"
+        and clicks_executed > 0
+        and action_iterations_attempted > 0
+        and no_detection_timeout_count >= int(args.max_consecutive_no_detection_timeouts)
+        and foreground_blocked_count == 0
+        and not max_duration_reached
+        and retry_limit_reached_count == 0
+    )
+    terminal_classification = "likely_task_ended_or_targets_exhausted" if task_end_likely else (stop_reason or "unknown")
+    terminal_classification_reason = (
+        "completed clicks/actions followed by consecutive no-detection timeouts without safety block"
+        if task_end_likely
+        else f"terminal stop reason: {stop_reason or 'unknown'}"
+    )
     return {
         "phase": 10,
         "mode": MODE,
@@ -239,8 +265,8 @@ def build_summary(
         "iterations_requested": int(args.max_iterations),
         "max_loop_iterations": int(args.max_loop_iterations),
         "loop_iterations_attempted": len(rows),
-        "action_iterations_attempted": sum(1 for row in rows if row.get("before_detections_count", 0)),
-        "clicks_executed": sum(1 for row in rows if row.get("click_executed")),
+        "action_iterations_attempted": action_iterations_attempted,
+        "clicks_executed": clicks_executed,
         "moves_executed": sum(1 for row in rows if row.get("relative_aim_executed")),
         "no_detection_policy": args.no_detection_policy,
         "max_no_detection_timeouts": args.max_no_detection_timeouts,
@@ -249,15 +275,19 @@ def build_summary(
         "max_no_detection_evidence": int(args.max_no_detection_evidence),
         "debug_detection_parity": bool(args.debug_detection_parity),
         "debug_detection_parity_on_no_detection": bool(args.debug_detection_parity_on_no_detection),
-        "no_detection_timeout_count": sum(1 for row in rows if row.get("stop_reason") == "no_detection_timeout"),
+        "no_detection_timeout_count": no_detection_timeout_count,
         "no_detection_evidence_saved_count": sum(1 for row in rows if row.get("no_detection_evidence_saved")),
         "no_detection_evidence_skipped_count": sum(1 for row in rows if row.get("stop_reason") == "no_detection_timeout" and not row.get("no_detection_evidence_saved")),
         "consecutive_no_detection_timeout_count": next((row.get("consecutive_no_detection_timeout_count") for row in reversed(rows) if row.get("stop_reason") == "no_detection_timeout"), 0),
         "aim_miss_count": sum(1 for row in rows if row.get("stop_reason") == "after_distance_exceeded_threshold"),
         "after_detection_missing_count": sum(1 for row in rows if row.get("stop_reason") == "after_detection_missing"),
-        "foreground_blocked_count": sum(1 for row in rows if row.get("stop_reason") == "foreground_blocked"),
+        "after_detection_missing_retry_count": sum(1 for row in rows if row.get("retry_reason") == "after_detection_missing_retry"),
+        "after_detection_missing_stop_count": sum(1 for row in rows if row.get("after_validation_method") == "no_after_detection" and row.get("stop_reason") == "after_detection_missing"),
+        "max_iterations": int(args.max_iterations),
+        "max_duration_sec": float(args.max_duration_sec),
+        "foreground_blocked_count": foreground_blocked_count,
         "keyboard_interrupt": bool(keyboard_interrupt),
-        "max_duration_reached": stop_reason == "max_duration_reached",
+        "max_duration_reached": max_duration_reached,
         "after_validation_mode": args.after_validation_mode,
         "benchmark_target_iteration_ms": 400,
         "benchmark_passed_under_400ms": bool(durations) and statistics.mean(durations) < 400.0,
@@ -281,7 +311,7 @@ def build_summary(
         "max_total_retry_attempts": args.max_total_retry_attempts,
         "total_retry_attempts": len(retry_scheduled_rows),
         "retry_groups_started": len({row.get("retry_group_id") for row in retry_scheduled_rows if row.get("retry_group_id") is not None}),
-        "retry_limit_reached_count": sum(1 for row in rows if row.get("retry_limit_reached")),
+        "retry_limit_reached_count": retry_limit_reached_count,
         "center_roi_near_miss_retry_count": sum(1 for row in retry_scheduled_rows if str(row.get("retry_reason", "")).startswith("center_roi")),
         "nearest_yolo_retry_count": sum(1 for row in retry_scheduled_rows if str(row.get("retry_reason", "")).startswith("after_nearest")),
         "same_target_retry_count": sum(1 for row in retry_scheduled_rows if row.get("same_target_distance_px") is not None),
@@ -312,7 +342,14 @@ def build_summary(
         "csv_headers_unique": True,
         "loop_started_at": timing.get("loop_started_at"),
         "loop_ended_at": timing.get("loop_ended_at"),
-        "active_loop_duration_sec": timing.get("active_loop_duration_sec"),
+        "active_loop_duration_sec": active_loop_duration_sec,
+        "task_end_likely": task_end_likely,
+        "terminal_classification": terminal_classification,
+        "terminal_classification_reason": terminal_classification_reason,
+        "clicks_per_active_second": round_float(clicks_executed / active_loop_duration) if active_loop_duration and active_loop_duration > 0 else None,
+        "actions_per_active_second": round_float(action_iterations_attempted / active_loop_duration) if active_loop_duration and active_loop_duration > 0 else None,
+        "click_rate_over_actions": round_float(clicks_executed / action_iterations_attempted) if action_iterations_attempted else None,
+        "retry_rate_over_actions": round_float(len(retry_scheduled_rows) / action_iterations_attempted) if action_iterations_attempted else None,
         "average_iteration_total_ms": round_float(statistics.mean(durations)) if durations else None,
         "median_iteration_total_ms": round_float(statistics.median(durations)) if durations else None,
         "min_iteration_total_ms": round_float(min(durations)) if durations else None,
@@ -744,6 +781,8 @@ def retry_candidate_reason(row: dict[str, Any], args: argparse.Namespace) -> str
     retry_distance = float(args.retry_distance_px)
     if row.get("strict_fallback_guard_retry"):
         return "strict_fallback_click_guard_retry"
+    if method == "no_after_detection" or row.get("stop_reason") == "after_detection_missing":
+        return "after_detection_missing_retry"
     if (
         method == "center_roi_yellow_fallback"
         and validation_passed
@@ -797,6 +836,7 @@ def evaluate_retry_decision(row: dict[str, Any], args: argparse.Namespace, retry
     row.update({
         "retry_scheduled": True,
         "retry_reason": reason,
+        "after_detection_missing_retry": reason == "after_detection_missing_retry",
         "retry_count_for_group": retry_state["retry_count_for_group"],
         "total_retry_attempts_so_far": retry_state["total_retry_attempts"],
     })
@@ -1093,6 +1133,7 @@ def run_iteration(
         "strict_center_roi_click_threshold_px": args.strict_center_roi_click_threshold_px,
         "fallback_click_evidence_saved": False,
         "strict_fallback_guard_retry": False,
+        "after_detection_missing_retry": False,
         "benchmark_under_400ms": None,
         "evidence_saved": False,
         "evidence_encode_ms": 0.0,

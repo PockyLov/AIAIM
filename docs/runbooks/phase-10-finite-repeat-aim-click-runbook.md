@@ -459,3 +459,101 @@ Interpretation:
 
 Recommended next diagnostic: run a 3-action test with no-detection evidence and parity enabled, then inspect `step_result.json`, `before_detection.json`, and the saved `before.png` for any no-detection iterations.
 
+## Phase 10.3.6 - After-Missing Bounded Retry + 300-Round Defaults
+
+Phase 10.3.6 treats `after_detection_missing` as a bounded retry condition when `--retry-policy bounded` is active. It still does not click when after validation is missing; it records the failed action iteration, schedules a retry, and the next iteration must use a fresh screenshot, fresh detection, and fresh FOV computation.
+
+Retry behavior:
+- `after_validation_method=no_after_detection` or `stop_reason=after_detection_missing` schedules `retry_reason=after_detection_missing_retry` under bounded retry.
+- The iteration remains `blocked=false`, `click_executed=false`, and `retry_scheduled=true`.
+- Retry limits still apply: `max_total_retry_attempts`, `max_retries_per_target`, `max_iterations`, `max_duration_sec`, `max_loop_iterations`, foreground gate, and KeyboardInterrupt.
+- With `--retry-policy stop`, old stop behavior is preserved for debugging.
+
+Recommended 300-round pressure command:
+
+```powershell
+Start-Sleep -Seconds 3; .\.venv\Scripts\python.exe scripts\live_finite_repeat_aim_click.py `
+  --model "D:\桌面desktop\AIAIM\runs\detect\phase3_yolo11n_baseline\weights\best.pt" `
+  --max-iterations 300 `
+  --max-duration-sec 120 `
+  --click-threshold-px 8 `
+  --post-click-wait-sec 0.03 `
+  --next-target-timeout-sec 0.50 `
+  --no-detection-poll-interval-sec 0.05 `
+  --horizontal-fov-deg 103 `
+  --vertical-fov-deg 70.53 `
+  --counts-per-degree 39.03 `
+  --global-gain 1.0 `
+  --after-validation-mode hybrid `
+  --after-fast-mode roi_only `
+  --click-guard-mode strict `
+  --strict-center-roi-click-threshold-px 6 `
+  --retry-policy bounded `
+  --max-retries-per-target 2 `
+  --max-total-retry-attempts 100 `
+  --retry-distance-px 30 `
+  --retry-same-target-distance-px 45 `
+  --capture-backend auto `
+  --evidence-mode failures `
+  --no-detection-policy continue `
+  --max-no-detection-timeouts 200 `
+  --max-consecutive-no-detection-timeouts 30 `
+  --max-no-detection-evidence 10 `
+  --save-evidence-on-no-detection `
+  --execute-move `
+  --allow-click `
+  --confirm-local-aimlab-only `
+  --output-dir "D:\桌面desktop\AIAIM\runs\detect\phase10_finite_repeat_aim_click"
+```
+
+Do not add `--save-evidence-on-fallback-click` to this command unless diagnosing fallback clicks.
+
+## Phase 10.3.7 pressure-test interpretation
+
+A 300-round pressure test can end with `stop_reason=max_consecutive_no_detection_timeouts_reached` after the AIMLAB task finishes and targets are exhausted. When clicks/actions have already completed, there is no foreground block, max duration is not reached, and retry limits are not reached, this is classified in summary as:
+
+```text
+task_end_likely=true
+terminal_classification=likely_task_ended_or_targets_exhausted
+```
+
+Recommended pressure test command remains:
+
+```powershell
+Start-Sleep -Seconds 3; .\.venv\Scripts\python.exe scripts\live_finite_repeat_aim_click.py `
+  --model "D:\桌面desktop\AIAIM\runs\detect\phase3_yolo11n_baseline\weights\best.pt" `
+  --max-iterations 300 `
+  --max-duration-sec 120 `
+  --max-loop-iterations 2000 `
+  --conf 0.10 `
+  --max-det 20 `
+  --click-threshold-px 8 `
+  --post-click-wait-sec 0.03 `
+  --next-target-timeout-sec 0.50 `
+  --no-detection-poll-interval-sec 0.05 `
+  --horizontal-fov-deg 103 `
+  --vertical-fov-deg 70.53 `
+  --counts-per-degree 39.03 `
+  --global-gain 1.0 `
+  --after-validation-mode hybrid `
+  --after-fast-mode roi_only `
+  --click-guard-mode strict `
+  --strict-center-roi-click-threshold-px 6 `
+  --retry-policy bounded `
+  --max-retries-per-target 2 `
+  --max-total-retry-attempts 100 `
+  --retry-distance-px 30 `
+  --retry-same-target-distance-px 45 `
+  --capture-backend auto `
+  --evidence-mode minimal `
+  --no-detection-policy continue `
+  --max-no-detection-timeouts 200 `
+  --max-consecutive-no-detection-timeouts 30 `
+  --execute-move `
+  --allow-click `
+  --confirm-local-aimlab-only `
+  --output-dir "D:\桌面desktop\AIAIM\runs\detect\phase10_finite_repeat_aim_click"
+```
+
+For no-detection diagnosis, temporarily add `--save-evidence-on-no-detection`. For normal high-speed pressure tests, prefer `--evidence-mode minimal`. Do not add `--save-evidence-on-fallback-click` unless specifically diagnosing fallback clicks.
+
