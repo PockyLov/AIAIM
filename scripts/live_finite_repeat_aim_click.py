@@ -113,6 +113,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-no-detection-evidence", type=int, default=10)
     parser.add_argument("--debug-detection-parity", action="store_true", default=False)
     parser.add_argument("--debug-detection-parity-on-no-detection", action="store_true", default=True)
+    parser.add_argument("--stop-file", type=Path, default=None)
     parser.add_argument("--retry-policy", choices=("stop", "bounded"), default="bounded")
     parser.add_argument("--max-retries-per-target", type=int, default=1)
     parser.add_argument("--max-total-retry-attempts", type=int, default=20)
@@ -210,6 +211,11 @@ def startup_gate(args: argparse.Namespace) -> tuple[bool, str | None]:
     if args.max_no_detection_timeouts < 0 or args.max_consecutive_no_detection_timeouts < 0 or args.max_no_detection_evidence < 0:
         return False, "no_detection_policy_parameter_invalid"
     return True, None
+
+
+def stop_file_requested(args: argparse.Namespace) -> bool:
+    stop_file = getattr(args, "stop_file", None)
+    return bool(stop_file and Path(stop_file).exists())
 
 
 def build_summary(
@@ -1540,6 +1546,10 @@ def main() -> int:
         consecutive_no_detection_timeout_count = 0
         no_detection_evidence_saved_count = 0
         while action_iteration_count < int(args.max_iterations):
+            if stop_file_requested(args):
+                stop_reason = "user_stop_requested"
+                append_event(events_path, "user_stop_requested", stop_file=str(args.stop_file))
+                break
             if loop_iteration_index > int(args.max_loop_iterations):
                 stop_reason = "max_loop_iterations_reached"
                 break

@@ -1,0 +1,44 @@
+{
+  "phase": "phase11_hotkey_runner",
+  "arm_timeout_sec": 5,
+  "hotkeys": {
+    "arm": "ctrl+alt+f8",
+    "start": "ctrl+alt+f9",
+    "stop": "ctrl+alt+f10"
+  },
+  "title_keywords": ["aimlab", "aim lab"],
+  "safety_caps": {
+    "max_iterations": 300,
+    "max_duration_sec": 120,
+    "max_loop_iterations": 2000,
+    "max_retries_per_target": 2,
+    "max_total_retry_attempts": 100,
+    "max_no_detection_timeouts": 200,
+    "max_consecutive_no_detection_timeouts": 30
+  },
+  "phase10": {
+    "script": "scripts/live_finite_repeat_aim_click.py",
+    "model": "runs/detect/phase3_yolo11n_baseline/weights/best.pt",
+    "output_dir": "runs/detect/phase11_hotkey_runner/phase10_child_runs",
+    "conf": 0.10,
+    "max_det": 20,
+    "max_iterations": 300,
+    "max_duration_sec": 120,
+    "max_loop_iterations": 2000,
+    "post_click_wait_sec": 0.03,
+    "after_validation_mode": "hybrid",
+    "after_fast_mode": "roi_only",
+    "click_guard_mode": "strict",
+    "strict_center_roi_click_threshold_px": 6,
+    "retry_policy": "bounded",
+    "max_retries_per_target": 2,
+    "max_total_retry_attempts": 100,
+    "max_no_detection_timeouts": 200,
+    "max_consecutive_no_detection_timeouts": 30,
+    "capture_backend": "mss",
+    "evidence_mode": "minimal",
+    "execute_move": true,
+    "allow_click": true,
+    "confirm_local_aimlab_only": true
+  }
+}

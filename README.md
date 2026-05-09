@@ -817,3 +817,26 @@ Phase 10.3.6 makes `after_detection_missing` retriable under `--retry-policy bou
 
 Phase 10.3.7 records the 300-round pressure-test result: 224 action iterations, 198 clicks, average iteration around 287 ms, average action round around 256 ms, and `benchmark_passed_under_400ms=true`. The observed terminal stop was consecutive no-detection after AIMLAB task completion / target exhaustion, now reported as `terminal_classification=likely_task_ended_or_targets_exhausted` when the run has completed clicks/actions without safety blocks, max-duration stop, or retry-limit stop.
 
+
+## Phase 11 Console Hotkey Runner
+
+Phase 11 adds a visible console runner for starting and stopping one finite Phase 10 run with hotkeys. It does not change Phase 10 detection, FOV aim, retry, click gate, or SendInput logic.
+
+Hotkeys:
+
+- `Ctrl+Alt+F8`: Arm
+- `Ctrl+Alt+F9`: Start one finite Phase 10 run
+- `Ctrl+Alt+F10`: Request soft stop through Phase 10 `--stop-file`
+
+Start the runner:
+
+```powershell
+.\run_phase11_hotkey_runner.bat
+```
+
+Phase 11 remains bounded and visible-console only. It does not implement GUI, tray, background automation, infinite loop, PID, target lock, smoothing, AIMLAB memory reading, AIMLAB file modification, or anti-cheat bypass.
+
+Documents:
+
+- `docs/runbooks/phase-11-hotkey-runner-runbook.md`
+- `docs/phase-reports/phase-11-report.md`

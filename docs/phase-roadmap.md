@@ -9,7 +9,7 @@ AIAIM must be developed incrementally. Codex must not skip ahead or implement la
 Current active phase:
 
 ```text
-Phase 9 one-shot click gate implemented; Windows + AIMLAB acceptance pending
+Phase 11 console hotkey runner implemented; Windows + AIMLAB acceptance pending
 ```
 
 2. Phase 0: Project Initialization and Codex Collaboration System
