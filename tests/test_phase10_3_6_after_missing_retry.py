@@ -89,6 +89,8 @@ def test_max_retries_per_target_reached_stops() -> None:
     r = row()
     state = phase10.new_retry_state()
     state["retry_count_for_group"] = 1
+    state["current_group_id"] = 1
+    state["last_before_center"] = {"x": 100.0, "y": 100.0}
     stop = phase10.mark_retry_or_stop(r, args(max_retries_per_target=1), state, "after_detection_missing")
     assert stop == "retry_limit_reached"
     assert r["retry_limit_reached"] is True

@@ -85,7 +85,7 @@ def test_stop_without_child_is_ignored(tmp_path):
 
 
 def test_safety_cap_exceeded_blocks_start(tmp_path):
-    runner = phase11.Phase11Runner(config=cfg(max_iterations=301), run_dir=tmp_path, foreground_check=lambda _kw: (True, None))
+    runner = phase11.Phase11Runner(config=cfg(max_iterations=601), run_dir=tmp_path, foreground_check=lambda _kw: (True, None))
     runner.arm(now=1.0)
     assert runner.start(now=2.0) is False
     assert runner.blocked_reason == "safety_cap_exceeded:max_iterations"

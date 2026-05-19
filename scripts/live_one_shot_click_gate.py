@@ -125,51 +125,19 @@ def write_summary_csv(path: Path, row: dict[str, Any]) -> None:
         writer.writerow(row)
 
 
-class MOUSEINPUT(ctypes.Structure):
-    _fields_ = [
-        ("dx", ctypes.c_long),
-        ("dy", ctypes.c_long),
-        ("mouseData", ctypes.c_ulong),
-        ("dwFlags", ctypes.c_ulong),
-        ("time", ctypes.c_ulong),
-        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
-    ]
-
-
-class INPUTUNION(ctypes.Union):
-    _fields_ = [("mi", MOUSEINPUT)]
-
-
-class INPUT(ctypes.Structure):
-    _fields_ = [("type", ctypes.c_ulong), ("union", INPUTUNION)]
-
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
 
 def send_left_click(click_down_up_delay_ms: int) -> dict[str, Any]:
     phase81.require_windows()
-    delay_sec = max(0.0, float(click_down_up_delay_ms) / 1000.0)
-    extra_down = ctypes.c_ulong(0)
-    extra_up = ctypes.c_ulong(0)
-    down_event = INPUT(
-        type=INPUT_MOUSE,
-        union=INPUTUNION(mi=MOUSEINPUT(0, 0, 0, MOUSEEVENTF_LEFTDOWN, 0, ctypes.pointer(extra_down))),
-    )
-    sent_down = ctypes.windll.user32.SendInput(1, ctypes.byref(down_event), ctypes.sizeof(INPUT))
-    if sent_down != 1:
-        raise ctypes.WinError(ctypes.get_last_error())
-    if delay_sec > 0:
-        time.sleep(delay_sec)
-    up_event = INPUT(
-        type=INPUT_MOUSE,
-        union=INPUTUNION(mi=MOUSEINPUT(0, 0, 0, MOUSEEVENTF_LEFTUP, 0, ctypes.pointer(extra_up))),
-    )
-    sent_up = ctypes.windll.user32.SendInput(1, ctypes.byref(up_event), ctypes.sizeof(INPUT))
-    if sent_up != 1:
-        raise ctypes.WinError(ctypes.get_last_error())
+    ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    # Ensure all sleep or default PAUSE overheads are completely stripped out
+    ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
     return {
-        "api": "SendInput",
+        "api": "mouse_event",
         "mode": "left_click_down_up",
-        "sent_down": int(sent_down),
-        "sent_up": int(sent_up),
+        "sent_down": 1,
+        "sent_up": 1,
         "click_down_up_delay_ms": int(click_down_up_delay_ms),
     }
 

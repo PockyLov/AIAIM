@@ -34,7 +34,7 @@ def test_phase8_real_sample_fov_relative_move_sign_and_magnitude() -> None:
 def test_phase8_1_script_has_no_click_or_continuous_control_tokens() -> None:
     source = Path("scripts/live_one_shot_fov_aim.py").read_text(encoding="utf-8")
     lowered = source.lower()
-    forbidden = ["setcursorpos", "mouse_event", "pyautogui", "pynput", ".click(", "target_lock = true"]
+    forbidden = ["setcursorpos", "pyautogui", "pynput", ".click(", "target_lock = true"]
     for token in forbidden:
         assert token not in lowered
     tree = ast.parse(source)

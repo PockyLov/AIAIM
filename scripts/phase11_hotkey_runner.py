@@ -36,11 +36,11 @@ STATE_STOPPING = "STOPPING"
 STATE_DONE = "DONE"
 
 DEFAULT_SAFETY_CAPS = {
-    "max_iterations": 300,
+    "max_iterations": 600,
     "max_duration_sec": 120,
     "max_loop_iterations": 2000,
     "max_retries_per_target": 2,
-    "max_total_retry_attempts": 100,
+    "max_retries": 100,
     "max_no_detection_timeouts": 200,
     "max_consecutive_no_detection_timeouts": 30,
 }
@@ -48,7 +48,7 @@ DEFAULT_SAFETY_CAPS = {
 DEFAULT_PHASE10_ARGS = {
     "conf": 0.10,
     "max_det": 20,
-    "max_iterations": 300,
+    "max_iterations": 600,
     "max_duration_sec": 120,
     "max_loop_iterations": 2000,
     "post_click_wait_sec": 0.03,
@@ -58,7 +58,7 @@ DEFAULT_PHASE10_ARGS = {
     "strict_center_roi_click_threshold_px": 6,
     "retry_policy": "bounded",
     "max_retries_per_target": 2,
-    "max_total_retry_attempts": 100,
+    "max_retries": 50,
     "max_no_detection_timeouts": 200,
     "max_consecutive_no_detection_timeouts": 30,
     "capture_backend": "mss",
@@ -66,6 +66,7 @@ DEFAULT_PHASE10_ARGS = {
     "execute_move": True,
     "allow_click": True,
     "confirm_local_aimlab_only": True,
+    "latency_compensation_sec": 0.075,
 }
 
 

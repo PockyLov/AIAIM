@@ -1,0 +1,14 @@
+{
+  "failure_type": "no_detection_timeout",
+  "iteration_index": 30,
+  "chosen_center_x": null,
+  "chosen_center_y": null,
+  "crosshair_x": null,
+  "crosshair_y": null,
+  "after_chosen_center_x": null,
+  "after_chosen_center_y": null,
+  "after_distance_to_crosshair_px": null,
+  "rounded_relative_dx": null,
+  "rounded_relative_dy": null,
+  "blocked_reason": null
+}

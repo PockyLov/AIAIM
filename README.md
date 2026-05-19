@@ -840,3 +840,27 @@ Documents:
 
 - `docs/runbooks/phase-11-hotkey-runner-runbook.md`
 - `docs/phase-reports/phase-11-report.md`
+
+## Phase 12 Ultra-low Latency & Failure Evidence Flywheel
+
+Phase 12 replaces the overhead of high-level wrappers like `pyautogui` and `pynput` with native `ctypes.windll.user32.mouse_event` to hit ultra-low latency action boundaries (>200 actions per 60s). It completely rips out default `time.sleep` constraints from the core API calls. 
+
+Additionally, Phase 12 introduces the **Failure Evidence Flywheel**. This leverages an asynchronous background Thread mapping off a `queue.Queue` to store diagnostic `before_capture`, `after_capture`, and failure metadata out-of-band. This mechanism guarantees that we never throttle or block the main execution loop even while saving heavy visual RGB diagnostic records for missed clicks or bounding-box fallbacks. 
+
+Phase 12 strictly maintains all Phase 10 / 11 global hotkey bounding loops and `max_iterations` caps.
+
+Documents:
+
+- `docs/runbooks/phase-12-performance-data-runbook.md`
+- `docs/phase-reports/phase-12-report.md`
+
+## Phase 12.5 Inference Engine Optimization
+
+Phase 12.5 migrates the YOLO detection pipeline from raw PyTorch (`.pt`) execution to hardware-accelerated ONNX and TensorRT implementations. This drastically lowers inference latencies natively. 
+
+A new dedicated conversion script `scripts/export_optimized_model.py` translates current YOLO state checkpoints into optimized FP16 execution graphs (`.onnx` or `.engine`). The core inference routing layer now operates on a dynamic prioritization structure: automatically deploying `TensorRT` -> `ONNX` -> `PyTorch` depending on adjacent configuration availability.
+
+Documents:
+
+- `docs/runbooks/phase-12-5-inference-optimization-runbook.md`
+- `docs/phase-reports/phase-12-5-report.md`

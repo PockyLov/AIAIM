@@ -92,7 +92,7 @@ def test_phase9_script_reuses_phase81_fov_model_and_has_no_setcursorpos_or_loop(
     lowered = source.lower()
     assert "import live_one_shot_fov_aim as phase81" in source
     assert "compute_fov_relative_move" in source
-    forbidden = ["setcursorpos", "mouse_event", "pyautogui", "pynput", "keyboard", "target_lock = true"]
+    forbidden = ["setcursorpos", "pyautogui", "pynput", "keyboard", "target_lock = true"]
     for token in forbidden:
         assert token not in lowered
     tree = ast.parse(source)

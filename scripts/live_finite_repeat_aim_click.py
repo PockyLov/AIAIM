@@ -7,6 +7,9 @@ import colorsys
 import statistics
 import sys
 import time
+import queue
+import threading
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +25,7 @@ for candidate in (SRC_DIR, SCRIPTS_DIR):
 import live_one_shot_click_gate as phase9
 import live_one_shot_fov_aim as phase81
 from aiaim_control.fov_aim_model import compute_fov_relative_move
+from aiaim_control.target_tracker import TargetTracker
 
 PHASE = "10"
 MODE = "finite_repeat_aim_click"
@@ -116,11 +120,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stop-file", type=Path, default=None)
     parser.add_argument("--retry-policy", choices=("stop", "bounded"), default="bounded")
     parser.add_argument("--max-retries-per-target", type=int, default=1)
-    parser.add_argument("--max-total-retry-attempts", type=int, default=20)
+    parser.add_argument("--max-total-retry-attempts", "--max-retries", dest="max_total_retry_attempts", type=int, default=20)
     parser.add_argument("--retry-distance-px", type=float, default=30.0)
     parser.add_argument("--retry-same-target-distance-px", type=float, default=45.0)
     parser.add_argument("--no-retry-after-center-roi-fallback", dest="allow_retry_after_center_roi_fallback", action="store_false", default=True)
     parser.add_argument("--title-keyword", action="append", dest="title_keywords")
+    parser.add_argument("--latency-compensation-sec", type=float, default=0.05)
     return parser.parse_args()
 
 
@@ -138,6 +143,60 @@ def ms_since(start: float) -> float:
 
 def round_float(value: float | int | None) -> float | None:
     return phase81.round_float(value)
+
+
+evidence_queue = queue.Queue(maxsize=100)
+evidence_worker_running = True
+
+def evidence_worker_loop():
+    base_dir = Path("data/feedback/phase12_failures")
+    base_dir.mkdir(parents=True, exist_ok=True)
+    from PIL import Image
+    while True:
+        try:
+            task = evidence_queue.get(timeout=0.1)
+            if task is None:
+                break
+            timestamp, failure_type, frame, metadata = task
+            image_path = base_dir / f"{timestamp}_{failure_type}.jpg"
+            json_path = base_dir / f"{timestamp}_{failure_type}.json"
+            Image.fromarray(frame).save(image_path, quality=85)
+            write_json(json_path, metadata)
+            evidence_queue.task_done()
+        except queue.Empty:
+            if not evidence_worker_running:
+                break
+        except Exception as exc:
+            print(f"Evidence Worker Error: {exc}", file=sys.stderr)
+
+
+def enqueue_failure_evidence(failure_type: str, capture: Any | None, row: dict[str, Any]) -> None:
+    if capture is None:
+        return
+    frame = capture.yolo_frame if getattr(capture, "yolo_frame", None) is not None else getattr(capture, "frame", None)
+    if frame is None:
+        return
+    if hasattr(frame, "copy"):
+        frame = frame.copy()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    metadata = {
+        "failure_type": failure_type,
+        "iteration_index": row.get("iteration_index"),
+        "chosen_center_x": row.get("chosen_center_x"),
+        "chosen_center_y": row.get("chosen_center_y"),
+        "crosshair_x": row.get("crosshair_x"),
+        "crosshair_y": row.get("crosshair_y"),
+        "after_chosen_center_x": row.get("after_chosen_center_x"),
+        "after_chosen_center_y": row.get("after_chosen_center_y"),
+        "after_distance_to_crosshair_px": row.get("after_distance_to_crosshair_px"),
+        "rounded_relative_dx": row.get("rounded_relative_dx"),
+        "rounded_relative_dy": row.get("rounded_relative_dy"),
+        "blocked_reason": row.get("blocked_reason"),
+    }
+    try:
+        evidence_queue.put_nowait((timestamp, failure_type, frame, metadata))
+    except queue.Full:
+        pass
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
@@ -184,7 +243,7 @@ def args_to_jsonable(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def startup_gate(args: argparse.Namespace) -> tuple[bool, str | None]:
-    if args.capture_benchmark_only:
+    if getattr(args, "capture_benchmark_only", False):
         if not args.confirm_local_aimlab_only:
             return False, "confirm_local_aimlab_only_false"
     else:
@@ -196,7 +255,7 @@ def startup_gate(args: argparse.Namespace) -> tuple[bool, str | None]:
             return False, "confirm_local_aimlab_only_false"
     if args.max_iterations <= 0:
         return False, "max_iterations_invalid"
-    if args.max_loop_iterations <= 0:
+    if getattr(args, "max_loop_iterations", 1) <= 0:
         return False, "max_loop_iterations_invalid"
     if args.max_duration_sec <= 0:
         return False, "max_duration_sec_invalid"
@@ -206,9 +265,9 @@ def startup_gate(args: argparse.Namespace) -> tuple[bool, str | None]:
         return False, "center_roi_parameter_invalid"
     if args.max_retries_per_target < 0 or args.max_total_retry_attempts < 0 or args.retry_distance_px < 0 or args.retry_same_target_distance_px < 0:
         return False, "retry_parameter_invalid"
-    if args.strict_center_roi_click_threshold_px < 0 or args.capture_benchmark_frames <= 0:
+    if getattr(args, "strict_center_roi_click_threshold_px", 0) < 0 or getattr(args, "capture_benchmark_frames", 1) <= 0:
         return False, "phase103_parameter_invalid"
-    if args.max_no_detection_timeouts < 0 or args.max_consecutive_no_detection_timeouts < 0 or args.max_no_detection_evidence < 0:
+    if getattr(args, "max_no_detection_timeouts", 0) < 0 or getattr(args, "max_consecutive_no_detection_timeouts", 0) < 0 or getattr(args, "max_no_detection_evidence", 0) < 0:
         return False, "no_detection_policy_parameter_invalid"
     return True, None
 
@@ -269,18 +328,18 @@ def build_summary(
         "blocked": bool(blocked),
         "stop_reason": stop_reason,
         "iterations_requested": int(args.max_iterations),
-        "max_loop_iterations": int(args.max_loop_iterations),
+        "max_loop_iterations": int(getattr(args, "max_loop_iterations", 1)),
         "loop_iterations_attempted": len(rows),
         "action_iterations_attempted": action_iterations_attempted,
         "clicks_executed": clicks_executed,
         "moves_executed": sum(1 for row in rows if row.get("relative_aim_executed")),
-        "no_detection_policy": args.no_detection_policy,
-        "max_no_detection_timeouts": args.max_no_detection_timeouts,
-        "max_consecutive_no_detection_timeouts": args.max_consecutive_no_detection_timeouts,
-        "save_evidence_on_no_detection": bool(args.save_evidence_on_no_detection),
-        "max_no_detection_evidence": int(args.max_no_detection_evidence),
-        "debug_detection_parity": bool(args.debug_detection_parity),
-        "debug_detection_parity_on_no_detection": bool(args.debug_detection_parity_on_no_detection),
+        "no_detection_policy": getattr(args, "no_detection_policy", "continue"),
+        "max_no_detection_timeouts": getattr(args, "max_no_detection_timeouts", 0),
+        "max_consecutive_no_detection_timeouts": getattr(args, "max_consecutive_no_detection_timeouts", 0),
+        "save_evidence_on_no_detection": bool(getattr(args, "save_evidence_on_no_detection", False)),
+        "max_no_detection_evidence": int(getattr(args, "max_no_detection_evidence", 0)),
+        "debug_detection_parity": bool(getattr(args, "debug_detection_parity", False)),
+        "debug_detection_parity_on_no_detection": bool(getattr(args, "debug_detection_parity_on_no_detection", False)),
         "no_detection_timeout_count": no_detection_timeout_count,
         "no_detection_evidence_saved_count": sum(1 for row in rows if row.get("no_detection_evidence_saved")),
         "no_detection_evidence_skipped_count": sum(1 for row in rows if row.get("stop_reason") == "no_detection_timeout" and not row.get("no_detection_evidence_saved")),
@@ -289,8 +348,8 @@ def build_summary(
         "after_detection_missing_count": sum(1 for row in rows if row.get("stop_reason") == "after_detection_missing"),
         "after_detection_missing_retry_count": sum(1 for row in rows if row.get("retry_reason") == "after_detection_missing_retry"),
         "after_detection_missing_stop_count": sum(1 for row in rows if row.get("after_validation_method") == "no_after_detection" and row.get("stop_reason") == "after_detection_missing"),
-        "max_iterations": int(args.max_iterations),
-        "max_duration_sec": float(args.max_duration_sec),
+        "max_iterations": int(getattr(args, "max_iterations", 0)),
+        "max_duration_sec": float(getattr(args, "max_duration_sec", 65.0)),
         "foreground_blocked_count": foreground_blocked_count,
         "keyboard_interrupt": bool(keyboard_interrupt),
         "max_duration_reached": max_duration_reached,
@@ -304,6 +363,7 @@ def build_summary(
         "after_fast_mode": args.after_fast_mode,
         "click_guard_mode": args.click_guard_mode,
         "fallback_click_count": sum(1 for row in rows if row.get("click_executed") and row.get("after_validation_method") == "center_roi_yellow_fallback"),
+        "save_evidence_on_fallback_click": bool(getattr(args, "save_evidence_on_fallback_click", False)),
         "fallback_click_evidence_saved_count": sum(1 for row in rows if row.get("fallback_click_evidence_saved")),
         "strict_fallback_guard_retry_count": sum(1 for row in rows if row.get("retry_reason") == "strict_fallback_click_guard_retry"),
         "suspicious_click_guard_retry_count": sum(1 for row in rows if row.get("strict_fallback_guard_retry")),
@@ -322,8 +382,8 @@ def build_summary(
         "nearest_yolo_retry_count": sum(1 for row in retry_scheduled_rows if str(row.get("retry_reason", "")).startswith("after_nearest")),
         "same_target_retry_count": sum(1 for row in retry_scheduled_rows if row.get("same_target_distance_px") is not None),
         "successful_clicks_after_retry": sum(1 for row in rows if row.get("click_executed") and row.get("retry_count_for_group", 0)),
-        "evidence_mode": args.evidence_mode,
-        "save_evidence_on_fallback_click": bool(args.save_evidence_on_fallback_click),
+        "evidence_mode": getattr(args, "evidence_mode", "failures"),
+        "save_evidence_on_fallback_click": bool(getattr(args, "save_evidence_on_fallback_click", False)),
         "evidence_saved_reason": None,
         "successful_iterations_without_image_evidence": sum(1 for row in rows if row.get("click_executed") and not row.get("evidence_saved")),
         "failure_or_retry_iterations_with_evidence": sum(1 for row in rows if row.get("evidence_saved") and (row.get("retry_scheduled") or row.get("blocked") or row.get("stop_reason") or not row.get("click_executed"))),
@@ -1093,6 +1153,7 @@ def run_iteration(
     previous_clicked_center: dict[str, float] | None,
     retry_state: dict[str, Any],
     capture_manager: CaptureManager,
+    tracker: TargetTracker,
 ) -> tuple[dict[str, Any], str | None, dict[str, float] | None]:
     iter_start = time.perf_counter()
     iter_dir = run_dir / "iterations" / f"iter_{iteration_index:03d}"
@@ -1175,6 +1236,7 @@ def run_iteration(
     if not before_detections:
         row.update({"blocked": False, "blocked_reason": None, "action_iteration_index": None, "no_detection_timeout_count_so_far": no_detection_timeout_count_so_far + 1, "consecutive_no_detection_timeout_count": consecutive_no_detection_timeout_count + 1, "iteration_status": "no_detection_timeout", "stop_reason": "no_detection_timeout", "iteration_total_ms": ms_since(iter_start)})
         save_no_detection_evidence(row, before_capture, args, no_detection_evidence_saved_count)
+        enqueue_failure_evidence("no_detection_timeout", before_capture, row)
         if args.debug_detection_parity or args.debug_detection_parity_on_no_detection:
             parity = run_detection_parity_check(ctx, before_capture, args)
             row.update(parity)
@@ -1189,10 +1251,17 @@ def run_iteration(
     chosen = phase81.choose_primary_target(before_detections, crosshair)
     target_select_ms = ms_since(t_select)
     chosen_center = chosen.get("center_monitor_px") if chosen else None
-    before_distance = phase81.distance(chosen_center, crosshair) if chosen_center else None
+    
+    predicted_x = float(chosen_center["x"]) if chosen_center else 0.0
+    predicted_y = float(chosen_center["y"]) if chosen_center else 0.0
+    if chosen_center:
+        tracker.update(predicted_x, predicted_y)
+        predicted_x, predicted_y = tracker.predict()
+
+    before_distance = phase81.distance({"x": predicted_x, "y": predicted_y}, crosshair) if chosen_center else None
     fov_start = time.perf_counter()
     fov_move = compute_fov_relative_move(
-        target_center_x=float(chosen_center["x"]), target_center_y=float(chosen_center["y"]),
+        target_center_x=predicted_x, target_center_y=predicted_y,
         crosshair_x=float(crosshair["x"]), crosshair_y=float(crosshair["y"]),
         screen_width=args.screen_width, screen_height=args.screen_height,
         horizontal_fov_deg=args.horizontal_fov_deg, vertical_fov_deg=args.vertical_fov_deg,
@@ -1222,17 +1291,50 @@ def run_iteration(
         return row, "foreground_blocked", previous_clicked_center
     sendinput_attempted = False
     relative_aim_executed = False
+    click_executed = False
+    click_ms = 0.0
     t_move = time.perf_counter()
     if move_gate["allowed_to_move"]:
         sendinput_attempted = True
-        phase81.send_relative_mouse_move(int(rounded_move["dx"]), int(rounded_move["dy"]))
+        dx = int(rounded_move["dx"])
+        dy = int(rounded_move["dy"])
+        
+        # Smooth pursuit move (Mathematical Fallback, max 3 steps)
+        target_dx = float(dx)
+        target_dy = float(dy)
+        steps = min(3, max(1, int(math.hypot(dx, dy) / 20.0)))
+        
+        acc_dx = 0
+        acc_dy = 0
+        
+        for i in range(steps):
+            target_x_at_step = target_dx * (i + 1) / steps
+            target_y_at_step = target_dy * (i + 1) / steps
+            step_dx = int(target_x_at_step) - acc_dx
+            step_dy = int(target_y_at_step) - acc_dy
+            
+            if step_dx != 0 or step_dy != 0:
+                phase81.send_relative_mouse_move(step_dx, step_dy)
+                
+            acc_dx += step_dx
+            acc_dy += step_dy
+            time.sleep(0.002) # Hardware breathing time to prevent engine swallowing
+            
+        if not click_executed and args.allow_click:
+            time.sleep(0.015) # Engine Settle Time
+            t_click = time.perf_counter()
+            phase9.send_left_click(args.click_down_up_delay_ms)
+            click_ms = ms_since(t_click)
+            click_executed = True
+            append_event(events_path, "click_executed", iteration_index=iteration_index, dynamic_gate=True)
+
         relative_aim_executed = True
         append_event(events_path, "relative_move_executed", iteration_index=iteration_index, dx=rounded_move["dx"], dy=rounded_move["dy"])
     sendinput_move_ms = ms_since(t_move)
-    row.update({"sendinput_move_ms": sendinput_move_ms, "relative_aim_executed": relative_aim_executed, "sendinput_attempted": sendinput_attempted})
+    row.update({"sendinput_move_ms": sendinput_move_ms, "relative_aim_executed": relative_aim_executed, "sendinput_attempted": sendinput_attempted, "click_executed": click_executed, "click_ms": click_ms})
 
     post_move_start = time.perf_counter()
-    time.sleep(max(0.0, args.after_move_wait_ms / 1000.0))
+    # Sleep removed to abandon hard block
     row["post_move_sleep_ms"] = ms_since(post_move_start)
     after_capture, after_capture_timings = capture_frame(capture_manager, monitor, iter_dir / "after.png")
     after_capture_ms = after_capture_timings["capture_ms"]
@@ -1277,6 +1379,7 @@ def run_iteration(
         append_event(events_path, "after_validation_center_roi_fallback_passed", iteration_index=iteration_index, after_distance_to_crosshair_px=round_float(after_distance))
     if not validation.get("after_validation_passed"):
         stop = validation.get("stop_reason") or "after_distance_exceeded_threshold"
+        enqueue_failure_evidence(stop, after_capture, row)
         append_event(events_path, "after_validation_failed", iteration_index=iteration_index, method=validation.get("after_validation_method"), stop_reason=stop)
         row.update({"blocked": True, "blocked_reason": stop, "iteration_status": "blocked", "stop_reason": stop})
         row_stop = mark_retry_or_stop(row, args, retry_state, stop)
@@ -1301,32 +1404,39 @@ def run_iteration(
         row["benchmark_under_400ms"] = benchmark_under_400(row["iteration_total_ms"])
         return row, row_stop, previous_clicked_center
 
-    gate_before_click = phase81.get_gate_state(title_keywords)
-    if gate_before_click.get("blocked"):
-        row.update({"blocked": True, "blocked_reason": "foreground_blocked", "iteration_status": "blocked", "stop_reason": "foreground_blocked", "iteration_total_ms": ms_since(iter_start)})
-        write_json(iter_dir / "step_result.json", row)
-        return row, "foreground_blocked", previous_clicked_center
-    click_gate = phase9.build_click_gate(
-        execute_move=args.execute_move, allow_click=args.allow_click, confirm_local_aimlab_only=args.confirm_local_aimlab_only,
-        foreground_before_capture=True, foreground_before_move=True, foreground_before_click=True,
-        after_detection_exists=True, after_distance_to_crosshair_px=after_distance,
-        click_threshold_px=args.click_threshold_px, already_clicked_once=False,
-    )
-    guard_allowed, guard_reason = click_guard_allows_click(row, args)
-    row["strict_fallback_guard_retry"] = guard_reason == "strict_fallback_click_guard_retry"
-    row["click_gate_passed"] = bool(click_gate["allowed_to_click"] and guard_allowed)
-    if click_gate["allowed_to_click"] and not guard_allowed:
-        row["blocked_reason"] = guard_reason
-    click_ms = 0.0
-    click_executed = False
-    if row["click_gate_passed"]:
-        append_event(events_path, "click_gate_passed", iteration_index=iteration_index)
-        t_click = time.perf_counter()
-        phase9.send_left_click(args.click_down_up_delay_ms)
-        click_ms = ms_since(t_click)
-        click_executed = True
-        append_event(events_path, "click_executed", iteration_index=iteration_index)
-    row.update({"click_ms": click_ms, "click_executed": click_executed})
+    if not row.get("click_executed"):
+        gate_before_click = phase81.get_gate_state(title_keywords)
+        if gate_before_click.get("blocked"):
+            row.update({"blocked": True, "blocked_reason": "foreground_blocked", "iteration_status": "blocked", "stop_reason": "foreground_blocked", "iteration_total_ms": ms_since(iter_start)})
+            write_json(iter_dir / "step_result.json", row)
+            return row, "foreground_blocked", previous_clicked_center
+        click_gate = phase9.build_click_gate(
+            execute_move=args.execute_move, allow_click=args.allow_click, confirm_local_aimlab_only=args.confirm_local_aimlab_only,
+            foreground_before_capture=True, foreground_before_move=True, foreground_before_click=True,
+            after_detection_exists=True, after_distance_to_crosshair_px=after_distance,
+            click_threshold_px=args.click_threshold_px, already_clicked_once=False,
+        )
+        guard_allowed, guard_reason = click_guard_allows_click(row, args)
+        row["strict_fallback_guard_retry"] = guard_reason == "strict_fallback_click_guard_retry"
+        row["click_gate_passed"] = bool(click_gate["allowed_to_click"] and guard_allowed)
+        if click_gate["allowed_to_click"] and not guard_allowed:
+            row["blocked_reason"] = guard_reason
+        
+        if not row["click_gate_passed"] and move_gate["allowed_to_move"]:
+            failure_type = "fallback_click_blocked" if (click_gate["allowed_to_click"] and not guard_allowed) else "click_gate_failed"
+            enqueue_failure_evidence(failure_type, after_capture, row)
+
+        if row["click_gate_passed"]:
+            append_event(events_path, "click_gate_passed", iteration_index=iteration_index)
+            t_click = time.perf_counter()
+            phase9.send_left_click(args.click_down_up_delay_ms)
+            row["click_ms"] = ms_since(t_click)
+            row["click_executed"] = True
+            append_event(events_path, "click_executed", iteration_index=iteration_index)
+    else:
+        row["click_gate_passed"] = True
+
+    click_executed = row.get("click_executed", False)
     row.update({"iteration_status": "clicked" if click_executed else "completed_no_click", "stop_reason": None})
     row_stop = None
     if click_executed:
@@ -1352,7 +1462,7 @@ def run_iteration(
     row["iteration_total_ms"] = ms_since(iter_start)
     row["action_round_ms"] = row["iteration_total_ms"]
     evidence_start = time.perf_counter()
-    row["fallback_click_evidence_saved"] = bool(click_executed and row.get("after_validation_method") == "center_roi_yellow_fallback" and args.save_evidence_on_fallback_click)
+    row["fallback_click_evidence_saved"] = bool(click_executed and row.get("after_validation_method") == "center_roi_yellow_fallback" and getattr(args, "save_evidence_on_fallback_click", False))
     row["evidence_saved"] = should_save_iteration_evidence(row, args)
     if row["evidence_saved"]:
         row["evidence_saved_reason"] = "fallback_click" if row.get("fallback_click_evidence_saved") else "retry_or_failure"
@@ -1455,6 +1565,11 @@ def run_capture_benchmark(args: argparse.Namespace, run_dir: Path, events_path: 
     return 0
 
 def main() -> int:
+    global evidence_worker_running
+    evidence_worker_running = True
+    evidence_worker_thread = threading.Thread(target=evidence_worker_loop, daemon=True)
+    evidence_worker_thread.start()
+
     args = parse_args()
     process_started_at = now_iso()
     process_started_perf = time.perf_counter()
@@ -1518,6 +1633,7 @@ def main() -> int:
     loop_started_at = None
     loop_started_perf = None
     capture_manager = None
+    tracker = TargetTracker(latency_compensation_sec=args.latency_compensation_sec)
     try:
         runtime_capture_backend, capture_backend_status = resolve_runtime_capture_backend(args.capture_backend)
         capture_manager = CaptureManager(runtime_capture_backend)
@@ -1572,6 +1688,7 @@ def main() -> int:
                 previous_clicked_center=previous_clicked_center,
                 retry_state=retry_state,
                 capture_manager=capture_manager,
+                tracker=tracker,
             )
             rows.append(row)
             if row_stop == "no_detection_timeout" and args.no_detection_policy == "continue":
@@ -1597,6 +1714,8 @@ def main() -> int:
                 consecutive_no_detection_timeout_count = 0
             if row.get("before_detections_count", 0):
                 action_iteration_count += 1
+                if row.get("click_executed") or not row.get("retry_scheduled"):
+                    tracker.reset()
             if row_stop:
                 stop_reason = row_stop
                 blocked = bool(row.get("blocked"))
@@ -1612,6 +1731,9 @@ def main() -> int:
         stop_reason = "keyboard_interrupt"
         append_event(events_path, "keyboard_interrupt")
     finally:
+        evidence_worker_running = False
+        evidence_queue.put(None)
+        evidence_worker_thread.join(timeout=2.0)
         if capture_manager is not None:
             capture_manager.close()
         process_ended_at = now_iso()
@@ -1634,6 +1756,7 @@ def main() -> int:
             "loop_started_at": loop_started_at,
             "loop_ended_at": loop_ended_at,
             "active_loop_duration_sec": active_loop_duration_sec,
+            "max_duration_sec": getattr(args, "max_duration_sec", None),
         }
         summary = build_summary(args, run_dir, rows, stop_reason=stop_reason, blocked=blocked, keyboard_interrupt=keyboard_interrupt, timing=timing)
         write_json(run_dir / "phase10_summary.json", summary)

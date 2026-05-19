@@ -60,6 +60,8 @@ def test_save_iteration_evidence_records_independent_timing(monkeypatch, tmp_pat
     calls = {"encode": 0, "draw": 0, "write": 0}
 
     def fake_encode(capture):
+        import time
+        time.sleep(0.006)
         calls["encode"] += 1
         return 5.0
 

@@ -186,15 +186,29 @@ def load_inference_context(args: argparse.Namespace) -> InferenceContext:
     if not args.model.exists():
         raise FileNotFoundError(f"model not found: {args.model}")
     actual_device = resolve_device(args.device)
+    
+    engine_path = args.model.with_suffix(".engine")
+    onnx_path = args.model.with_suffix(".onnx")
+    
+    model_to_load = args.model
+    if engine_path.exists():
+        model_to_load = engine_path
+        print(f"Phase 12.5: Found optimized TensorRT engine: {engine_path}")
+    elif onnx_path.exists():
+        model_to_load = onnx_path
+        print(f"Phase 12.5: Found optimized ONNX model: {onnx_path}")
+    else:
+        print(f"Phase 12.5: Using raw PyTorch model: {args.model}")
+
     try:
         from ultralytics import YOLO
 
-        model = YOLO(str(args.model))
+        model = YOLO(str(model_to_load), task="detect")
     except Exception as exc:
-        raise RuntimeError(f"failed to load YOLO model from {args.model}: {exc}") from exc
+        raise RuntimeError(f"failed to load YOLO model from {model_to_load}: {exc}") from exc
     return InferenceContext(
         model=model,
-        model_path=args.model,
+        model_path=model_to_load,
         model_names=normalize_model_names(getattr(model, "names", {})),
         conf=args.conf,
         iou=args.iou,
@@ -312,36 +326,13 @@ def require_windows() -> None:
         raise RuntimeError("Phase 8.1 FOV one-shot aim requires Windows input APIs.")
 
 
-class MOUSEINPUT(ctypes.Structure):
-    _fields_ = [
-        ("dx", ctypes.c_long),
-        ("dy", ctypes.c_long),
-        ("mouseData", ctypes.c_ulong),
-        ("dwFlags", ctypes.c_ulong),
-        ("time", ctypes.c_ulong),
-        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
-    ]
-
-
-class INPUTUNION(ctypes.Union):
-    _fields_ = [("mi", MOUSEINPUT)]
-
-
-class INPUT(ctypes.Structure):
-    _fields_ = [("type", ctypes.c_ulong), ("union", INPUTUNION)]
-
+MOUSEEVENTF_MOVE = 0x0001
 
 def send_relative_mouse_move(dx: int, dy: int) -> dict[str, Any]:
     require_windows()
-    extra = ctypes.c_ulong(0)
-    input_event = INPUT(
-        type=INPUT_MOUSE,
-        union=INPUTUNION(mi=MOUSEINPUT(dx, dy, 0, MOUSEINPUT_MOVE, 0, ctypes.pointer(extra))),
-    )
-    sent = ctypes.windll.user32.SendInput(1, ctypes.byref(input_event), ctypes.sizeof(INPUT))
-    if sent != 1:
-        raise ctypes.WinError(ctypes.get_last_error())
-    return {"sent": int(sent), "requested_dx": int(dx), "requested_dy": int(dy), "api": "SendInput", "mode": "relative_move"}
+    ctypes.windll.user32.mouse_event(MOUSEEVENTF_MOVE, dx, dy, 0, 0)
+    return {"sent": 1, "requested_dx": int(dx), "requested_dy": int(dy), "api": "mouse_event", "mode": "relative_move"}
+
 
 
 def build_move_gate(
