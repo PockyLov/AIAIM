@@ -24,7 +24,7 @@ for candidate in (SRC_DIR, SCRIPTS_DIR):
 
 import live_one_shot_click_gate as phase9
 import live_one_shot_fov_aim as phase81
-from aiaim_control.fov_aim_model import compute_fov_relative_move
+from aiaim_control.fov_aim_model import compute_fov_relative_move, compute_focal_px, compute_angle_delta_deg
 from aiaim_control.target_tracker import TargetTracker
 
 PHASE = "10"
@@ -57,6 +57,8 @@ ITERATION_FIELDS = [
     "after_detections_count", "after_chosen_center_x", "after_chosen_center_y", "after_distance_to_crosshair_px",
     "click_threshold_px", "click_gate_passed", "click_executed", "iteration_status", "stop_reason",
 ]
+
+
 
 
 def parse_args() -> argparse.Namespace:
@@ -1254,9 +1256,28 @@ def run_iteration(
     
     predicted_x = float(chosen_center["x"]) if chosen_center else 0.0
     predicted_y = float(chosen_center["y"]) if chosen_center else 0.0
+    pred_rel_x = 0.0
+    pred_rel_y = 0.0
     if chosen_center:
-        tracker.update(predicted_x, predicted_y)
-        predicted_x, predicted_y = tracker.predict()
+        rel_x = float(chosen_center["x"]) - float(crosshair["x"])
+        rel_y = float(chosen_center["y"]) - float(crosshair["y"])
+        
+        # Pixel to Angular Space conversion
+        focal = compute_focal_px(args.screen_width, args.screen_height, args.horizontal_fov_deg, args.vertical_fov_deg)
+        angles = compute_angle_delta_deg(rel_x, rel_y, focal["focal_x"], focal["focal_y"])
+        target_yaw = angles["x"]
+        target_pitch = angles["y"]
+        
+        # Update and predict in angular space
+        tracker.update(target_yaw, target_pitch)
+        pred_yaw, pred_pitch = tracker.predict()
+        
+        # Angular Space to Pixel conversion
+        pred_rel_x = focal["focal_x"] * math.tan(math.radians(pred_yaw))
+        pred_rel_y = focal["focal_y"] * math.tan(math.radians(pred_pitch))
+        
+        predicted_x = float(crosshair["x"]) + pred_rel_x
+        predicted_y = float(crosshair["y"]) + pred_rel_y
 
     before_distance = phase81.distance({"x": predicted_x, "y": predicted_y}, crosshair) if chosen_center else None
     fov_start = time.perf_counter()
@@ -1308,13 +1329,17 @@ def run_iteration(
         acc_dy = 0
         
         for i in range(steps):
-            target_x_at_step = target_dx * (i + 1) / steps
-            target_y_at_step = target_dy * (i + 1) / steps
+            progress = math.sin(((i + 1) / steps) * (math.pi / 2.0))
+            target_x_at_step = target_dx * progress
+            target_y_at_step = target_dy * progress
             step_dx = int(target_x_at_step) - acc_dx
             step_dy = int(target_y_at_step) - acc_dy
             
             if step_dx != 0 or step_dy != 0:
                 phase81.send_relative_mouse_move(step_dx, step_dy)
+                sent_yaw = float(step_dx) / (float(args.counts_per_degree) * float(args.global_gain))
+                sent_pitch = float(step_dy) / (float(args.counts_per_degree) * float(args.global_gain))
+                tracker.shift_camera(sent_yaw, sent_pitch)
                 
             acc_dx += step_dx
             acc_dy += step_dy
@@ -1714,7 +1739,7 @@ def main() -> int:
                 consecutive_no_detection_timeout_count = 0
             if row.get("before_detections_count", 0):
                 action_iteration_count += 1
-                if row.get("click_executed") or not row.get("retry_scheduled"):
+                if not row.get("retry_scheduled"):
                     tracker.reset()
             if row_stop:
                 stop_reason = row_stop

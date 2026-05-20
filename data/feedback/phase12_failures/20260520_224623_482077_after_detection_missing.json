@@ -1,0 +1,14 @@
+{
+  "failure_type": "after_detection_missing",
+  "iteration_index": 283,
+  "chosen_center_x": 936.9242,
+  "chosen_center_y": 589.5064,
+  "crosshair_x": 960.0,
+  "crosshair_y": 540.0,
+  "after_chosen_center_x": 959.4414,
+  "after_chosen_center_y": 554.2127,
+  "after_distance_to_crosshair_px": null,
+  "rounded_relative_dx": -61,
+  "rounded_relative_dy": 35,
+  "blocked_reason": null
+}

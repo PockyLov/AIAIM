@@ -40,6 +40,6 @@
     "execute_move": true,
     "allow_click": true,
     "confirm_local_aimlab_only": true,
-    "latency_compensation_sec": 0.09
+    "latency_compensation_sec": 0.08
   }
 }
